@@ -1,48 +1,74 @@
-import { datastore } from "../data/datastore.js";
-import { IssueStatus, UserRole } from "../../src/types.js";
+import User from "../models/User.js";
+import Issue from "../models/Issue.js";
+import Notification from "../models/Notification.js";
 
 // Gamification stats, leaderboard & current progress
-export function getUserDashboard(req, res) {
-  const user = datastore.users.find(u => u.id === req.params.id);
-  if (!user) {
-    return res.status(404).json({ error: "User not found" });
+export async function getUserDashboard(req, res) {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const userIssues = await Issue.find({ reporterId: user._id });
+    const userVerifications = await Issue.find({ "verifications.userId": user._id });
+
+    // Compute leaderboard sorted by points
+    const citizens = await User.find({ role: "Citizen" }).sort({ points: -1 });
+    const leaderboard = await Promise.all(citizens.map(async (u) => {
+      const resolvedCount = await Issue.countDocuments({ reporterId: u._id, status: "Closed" });
+      return {
+        userId: u._id,
+        name: u.name,
+        points: u.points,
+        badgesCount: u.badges.length,
+        resolvedCount
+      };
+    }));
+
+    res.json({
+      user,
+      userIssuesCount: userIssues.length,
+      userVerificationsCount: userVerifications.length,
+      resolvedCount: userIssues.filter(i => i.status === "Closed").length,
+      leaderboard
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const userIssues = datastore.issues.filter(i => i.reporterId === user.id);
-  const userVerifications = datastore.issues.filter(i => i.verifications.some(v => v.userId === user.id));
-
-  // Compute leaderboard sorted by points
-  const leaderboard = datastore.users
-    .filter(u => u.role === UserRole.CITIZEN)
-    .map(u => ({
-      userId: u.id,
-      name: u.name,
-      points: u.points,
-      badgesCount: u.badges.length,
-      resolvedCount: datastore.issues.filter(i => i.reporterId === u.id && i.status === IssueStatus.CLOSED).length
-    }))
-    .sort((a, b) => b.points - a.points);
-
-  res.json({
-    user,
-    userIssuesCount: userIssues.length,
-    userVerificationsCount: userVerifications.length,
-    resolvedCount: userIssues.filter(i => i.status === IssueStatus.CLOSED).length,
-    leaderboard
-  });
 }
 
-// Manage notifications read state
-export function markNotificationRead(req, res) {
-  const notif = datastore.notifications.find(n => n.id === req.params.id);
-  if (notif) {
-    notif.isRead = true;
-    return res.json({ success: true });
+// Mark notification as read
+export async function markNotificationRead(req, res) {
+  try {
+    const notif = await Notification.findByIdAndUpdate(
+      req.params.id,
+      { isRead: true },
+      { new: true }
+    );
+    if (!notif) return res.status(404).json({ error: "Notification not found" });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.status(404).json({ error: "Notification not found" });
 }
 
-export function getUserNotifications(req, res) {
-  const notifs = datastore.notifications.filter(n => n.userId === req.params.userId || n.userId === "all");
-  res.json(notifs);
+// Get user notifications
+export async function getUserNotifications(req, res) {
+  try {
+    const notifs = await Notification.find({ userId: req.params.userId })
+      .sort({ createdAt: -1 })
+      .limit(50);
+    res.json(notifs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// Get all users (for identity switcher — no hardcoded dropdown)
+export async function getAllUsers(req, res) {
+  try {
+    const users = await User.find().sort({ role: 1, name: 1 });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }

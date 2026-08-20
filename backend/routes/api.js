@@ -3,8 +3,12 @@ import * as issueController from "../controllers/issueController.js";
 import * as aiController from "../controllers/aiController.js";
 import * as userController from "../controllers/userController.js";
 import * as adminController from "../controllers/adminController.js";
+import { addSSEClient } from "../services/sse.js";
 
 const router = express.Router();
+
+// Real-time Server-Sent Events stream
+router.get("/events", addSSEClient);
 
 // Issues & Lifecycle
 router.get("/issues", issueController.getIssues);
@@ -22,6 +26,7 @@ router.post("/ai/chat", aiController.chat);
 router.get("/predictions/hotspots", aiController.getHotspots);
 
 // Users & Notifications
+router.get("/users", userController.getAllUsers);
 router.get("/users/:id/dashboard", userController.getUserDashboard);
 router.post("/notifications/:id/read", userController.markNotificationRead);
 router.get("/notifications/user/:userId", userController.getUserNotifications);

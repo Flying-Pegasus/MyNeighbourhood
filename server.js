@@ -2,7 +2,9 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { connectDB } from "./backend/config/db.js";
 import apiRouter from "./backend/routes/api.js";
+import { startSLAMonitor } from "./backend/services/slaMonitor.js";
 
 dotenv.config();
 
@@ -18,6 +20,12 @@ app.use("/api", apiRouter);
 
 // NODE SERVING (Vite + Dist Static Files)
 async function startServer() {
+  // Connect to MongoDB
+  await connectDB();
+
+  // Start SLA deadline monitoring
+  startSLAMonitor();
+
   if (process.env.NODE_ENV !== "production") {
     // Development Mode: Mount Vite's HMR middleware
     const vite = await createViteServer({
