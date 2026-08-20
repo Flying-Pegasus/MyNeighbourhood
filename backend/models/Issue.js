@@ -68,7 +68,7 @@ const issueSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Auto-calculate SLA deadline on save
-issueSchema.pre("save", function (next) {
+issueSchema.pre("save", function () {
   if (this.isNew && !this.slaDeadline) {
     const hours = {
       "Critical": 4,
@@ -79,7 +79,6 @@ issueSchema.pre("save", function (next) {
     const slaHours = hours[this.severity] || 72;
     this.slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000);
   }
-  next();
 });
 
 issueSchema.set("toJSON", { virtuals: true });

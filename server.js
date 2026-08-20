@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { connectDB } from "./backend/config/db.js";
+import { seedDatabase } from "./backend/seed/seed.js";
 import apiRouter from "./backend/routes/api.js";
 import { startSLAMonitor } from "./backend/services/slaMonitor.js";
 
@@ -22,6 +23,7 @@ app.use("/api", apiRouter);
 async function startServer() {
   // Connect to MongoDB
   await connectDB();
+  await seedDatabase();
 
   // Start SLA deadline monitoring
   startSLAMonitor();

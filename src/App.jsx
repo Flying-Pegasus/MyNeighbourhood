@@ -46,7 +46,7 @@ export default function App() {
         API.fetchPredictions(),
         API.fetchAdminStats()
       ]);
-      
+
       setIssues(issuesData);
       setPredictions(predData);
       setAdminStats(statsData);
@@ -78,7 +78,7 @@ export default function App() {
         const users = await API.fetchAllUsers();
         setAllUsers(users);
         if (users.length > 0) {
-          const defaultUser = users[0];
+          const defaultUser = users.find((user) => user.role === UserRole.CITIZEN) || users[0];
           const dashData = await API.fetchUserDashboard(defaultUser._id);
           setCurrentUser(dashData.user);
         }
@@ -114,11 +114,11 @@ export default function App() {
     try {
       const dashData = await API.fetchUserDashboard(userId);
       setCurrentUser(dashData.user);
-      
+
       if (dashData.user.role === UserRole.CITIZEN) setActiveTab("map");
       else if (dashData.user.role === UserRole.OFFICER) setActiveTab("officer");
       else if (dashData.user.role === UserRole.ADMIN) setActiveTab("admin");
-      
+
       setSelectedIssue(null);
       setDroppedPin(null);
     } catch (err) {
@@ -128,7 +128,12 @@ export default function App() {
 
   const handleCreateIssue = async (reportData) => {
     try {
-      await API.createIssue({ ...reportData, reporterId: currentUser._id || currentUser.id });
+      const reporterId = currentUser?._id || currentUser?.id;
+      if (!reporterId) {
+        throw new Error("User profile is still loading. Please try again in a moment.");
+      }
+
+      await API.createIssue({ ...reportData, reporterId });
       setDroppedPin(null);
       setShowNewIssueModal(false);
       setActiveTab("map");
@@ -141,7 +146,7 @@ export default function App() {
 
   return (
     <div className="h-screen w-full bg-[#F1F5F9] text-slate-900 font-sans flex overflow-hidden selection:bg-blue-100 relative">
-      <Sidebar 
+      <Sidebar
         currentUser={currentUser}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -151,7 +156,7 @@ export default function App() {
       />
 
       <main className="flex-1 flex flex-col overflow-hidden bg-[#F1F5F9] w-full">
-        <Header 
+        <Header
           activeTab={activeTab}
           setIsSidebarOpen={setIsSidebarOpen}
           issues={issues}
@@ -170,7 +175,7 @@ export default function App() {
 
         {/* Content body */}
         <div className="flex-1 p-4 md:p-6 space-y-4 min-h-0 overflow-y-auto lg:overflow-hidden flex flex-col">
-          
+
           {activeTab === "map" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch lg:h-full lg:min-h-0 flex-1 min-h-0">
               <div className="lg:col-span-2 space-y-4 lg:h-full lg:min-h-0 flex flex-col">
@@ -178,7 +183,7 @@ export default function App() {
                 <div className="bg-white px-5 py-3 border border-slate-200 rounded-2xl shadow-xs flex flex-col md:flex-row gap-4 items-center text-xs justify-between">
                   <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
                     <span className="font-bold text-slate-405 uppercase tracking-wide">Dynamic Filter:</span>
-                    
+
                     <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="bg-slate-50 border rounded-lg px-2.5 py-1.5 outline-none font-bold text-slate-700 text-xs focus:ring-1 focus:border-blue-500">
                       <option value="All">All Categories</option>
                       <option value="Pothole">Potholes</option>
@@ -220,8 +225,8 @@ export default function App() {
 
                 {/* Map integration */}
                 <div className="flex-1 h-[480px] lg:h-full lg:min-h-0">
-                  <CivicMap 
-                    issues={issues} 
+                  <CivicMap
+                    issues={issues}
                     selectedIssue={selectedIssue}
                     onSelectIssue={(issue) => setSelectedIssue(issue)}
                     predictions={predictions}
@@ -235,7 +240,7 @@ export default function App() {
               </div>
 
               <div className="lg:col-span-1 lg:h-full lg:min-h-0 flex flex-col">
-                <IssueDetailPanel 
+                <IssueDetailPanel
                   issues={issues}
                   selectedIssue={selectedIssue}
                   setSelectedIssue={setSelectedIssue}
@@ -264,8 +269,9 @@ export default function App() {
 
           {activeTab === "report" && (
             <div className="w-full lg:h-full lg:min-h-0 flex flex-col">
-              <NewIssueForm 
+              <NewIssueForm
                 currentLocation={droppedPin}
+                browserLocation={userCoords}
                 onClose={() => { setDroppedPin(null); setActiveTab("map"); }}
                 onSubmitReport={handleCreateIssue}
                 userId={currentUser?._id}
@@ -276,7 +282,7 @@ export default function App() {
 
           {activeTab === "rewards" && currentUser && (
             <div className="w-full lg:h-full lg:min-h-0 lg:overflow-y-auto pr-1">
-              <LeaderboardsAndRewards 
+              <LeaderboardsAndRewards
                 stats={{
                   user: currentUser,
                   userIssuesCount: issues.filter(i => i.reporterId === currentUser._id).length,
@@ -296,7 +302,7 @@ export default function App() {
 
           {activeTab === "officer" && currentUser?.role === UserRole.OFFICER && (
             <div className="w-full lg:h-full lg:min-h-0 flex flex-col">
-              <OfficerDashboard 
+              <OfficerDashboard
                 issues={issues}
                 officerName={currentUser.name}
                 officerId={currentUser._id}
@@ -322,8 +328,9 @@ export default function App() {
       {showNewIssueModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
           <div className="w-full max-w-5xl h-full max-h-[90vh] flex flex-col">
-            <NewIssueForm 
+            <NewIssueForm
               currentLocation={droppedPin}
+              browserLocation={userCoords}
               onClose={() => setShowNewIssueModal(false)}
               onSubmitReport={handleCreateIssue}
               userId={currentUser?._id}
