@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { IssueCategory, IssueSeverity } from "../types";
-import { 
-  MapPin, 
-  AlertTriangle, 
-  Sparkles, 
-  Upload, 
-  X, 
-  ChevronRight, 
-  ChevronLeft, 
-  ShieldAlert, 
-  Compass, 
-  HelpCircle, 
-  User, 
-  Phone, 
-  CheckCircle, 
+import {
+  MapPin,
+  AlertTriangle,
+  Sparkles,
+  Upload,
+  X,
+  ChevronRight,
+  ChevronLeft,
+  ShieldAlert,
+  Compass,
+  HelpCircle,
+  User,
+  Phone,
+  CheckCircle,
   Loader2,
   Search,
   Check
@@ -99,12 +99,12 @@ const reverseGeocode = (lat, lng) => {
   const latMax = 45.5400;
   const lngMin = -122.7000;
   const lngMax = -122.6400;
-  
+
   const pctX = (lng - lngMin) / (lngMax - lngMin);
   const pctY = (lat - latMin) / (latMax - latMin);
-  
+
   const mockStreetNo = Math.floor(100 + pctX * 3800);
-  
+
   let street = "";
   if (pctY > 0.6) {
     if (pctX < 0.5) street = "NW Broadway Blvd";
@@ -116,12 +116,15 @@ const reverseGeocode = (lat, lng) => {
     if (pctX < 0.5) street = "SW Morrison St";
     else street = "SE Hawthorne Blvd";
   }
-  
+
   return `${mockStreetNo} ${street}, Portland, OR`;
 };
 
-export default function NewIssueForm({ 
-  currentLocation, 
+const formatLocationLabel = (lat, lng) => `Current location (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+
+export default function NewIssueForm({
+  currentLocation,
+  browserLocation,
   onClose,
   onSubmitReport,
   userId,
@@ -132,11 +135,13 @@ export default function NewIssueForm({
   const [step, setStep] = useState(1);
   const totalSteps = 4; // 1: Location, 2: Category, 3: Diagnostics & Description, 4: Image & Submit
 
+  const initialLocation = currentLocation || browserLocation || null;
+
   // State 1: Location
   const [locationMode, setLocationMode] = useState("write"); // 'pinpoint' | 'write'
-  const [typedAddress, setTypedAddress] = useState(currentLocation ? currentLocation.address : "");
+  const [typedAddress, setTypedAddress] = useState(initialLocation ? (initialLocation.address || formatLocationLabel(initialLocation.lat, initialLocation.lng)) : "");
   const [detectedCoords, setDetectedCoords] = useState(
-    currentLocation ? { lat: currentLocation.lat, lng: currentLocation.lng } : null
+    initialLocation ? { lat: initialLocation.lat, lng: initialLocation.lng } : null
   );
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeFeedback, setGeocodeFeedback] = useState("");
@@ -156,7 +161,7 @@ export default function NewIssueForm({
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [dragOver, setDragOver] = useState(false);
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -199,6 +204,12 @@ export default function NewIssueForm({
     const activeImage = filePreselectedIdx !== null ? PRESETS_IMAGE[filePreselectedIdx] : imageUrl || PRESETS_IMAGE[0];
     const severity = getCalculatedSeverity();
 
+    if (!detectedCoords) {
+      setErrorMessage("Please detect your location or pin the map before submitting.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       await onSubmitReport({
         title: `${resolvedCategory} at ${typedAddress.split(",")[0]}`,
@@ -206,8 +217,8 @@ export default function NewIssueForm({
         category: selectedCategory === "others" ? IssueCategory.INFRASTRUCTURE_FAILURE : selectedCategory,
         severity: severity,
         address: typedAddress,
-        latitude: detectedCoords?.lat || 45.5200,
-        longitude: detectedCoords?.lng || -122.6800,
+        latitude: detectedCoords.lat,
+        longitude: detectedCoords.lng,
         mediaUrl: activeImage,
         isAnonymous: isAnonymous
       });
@@ -226,8 +237,14 @@ export default function NewIssueForm({
     if (currentLocation) {
       setTypedAddress(currentLocation.address);
       setDetectedCoords({ lat: currentLocation.lat, lng: currentLocation.lng });
+      return;
     }
-  }, [currentLocation]);
+
+    if (browserLocation && !typedAddress && !detectedCoords) {
+      setTypedAddress(formatLocationLabel(browserLocation.lat, browserLocation.lng));
+      setDetectedCoords({ lat: browserLocation.lat, lng: browserLocation.lng });
+    }
+  }, [currentLocation, browserLocation, typedAddress, detectedCoords]);
 
   // Simulated geocoding when user enters street address manually
   const handleSimulateGeocode = () => {
@@ -258,7 +275,7 @@ export default function NewIssueForm({
   const processFile = (file) => {
     setUploadedFileName(file.name);
     setFilePreselectedIdx(null); // Deselect preset
-    
+
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result) {
@@ -316,10 +333,8 @@ export default function NewIssueForm({
         return;
       }
       if (!detectedCoords) {
-        // Automatically geocode and proceed if they haven't explicitly clicked verify
-        const randLat = 45.51 + Math.random() * 0.025;
-        const randLng = -122.68 + Math.random() * 0.04;
-        setDetectedCoords({ lat: randLat, lng: randLng });
+        setErrorMessage("Please detect your location, choose a suggestion, or tap the map to set coordinates.");
+        return;
       }
     }
     if (step === 2) {
@@ -361,6 +376,12 @@ export default function NewIssueForm({
     const activeImage = filePreselectedIdx !== null ? PRESETS_IMAGE[filePreselectedIdx] : imageUrl || PRESETS_IMAGE[0];
     const severity = getCalculatedSeverity();
 
+    if (!detectedCoords) {
+      setErrorMessage("Please detect your location or pin the map before submitting.");
+      setIsSubmitting(false);
+      return;
+    }
+
     // Check for duplicate first
     if (!bypassDuplicateCheck) {
       const duplicate = checkDuplicate();
@@ -378,8 +399,8 @@ export default function NewIssueForm({
         category: selectedCategory === "others" ? IssueCategory.INFRASTRUCTURE_FAILURE : selectedCategory,
         severity: severity,
         address: typedAddress,
-        latitude: detectedCoords?.lat || 45.5200,
-        longitude: detectedCoords?.lng || -122.6800,
+        latitude: detectedCoords.lat,
+        longitude: detectedCoords.lng,
         mediaUrl: activeImage,
         isAnonymous: isAnonymous
       });
@@ -396,7 +417,7 @@ export default function NewIssueForm({
 
   return (
     <div id="citizen-dispatch-modal" className="bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 relative w-full h-full min-h-0 flex flex-col transition-all animate-fadeIn text-slate-800">
-      
+
       {/* DUPLICATE WARNING OVERLAY */}
       {duplicateWarningIssue && (
         <div className="absolute inset-0 z-50 bg-white rounded-2xl p-6 flex flex-col justify-between animate-fadeIn text-slate-800">
@@ -448,7 +469,7 @@ export default function NewIssueForm({
                 🔍 Avoid Posting & View Existing on Map
               </button>
             )}
-            
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -473,7 +494,7 @@ export default function NewIssueForm({
       )}
 
       {/* Absolute Close Header button */}
-      <button 
+      <button
         onClick={onClose}
         className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors p-1.5 hover:bg-slate-100 rounded-lg cursor-pointer"
         aria-label="Close Modal"
@@ -502,18 +523,16 @@ export default function NewIssueForm({
           return (
             <React.Fragment key={stepNum}>
               <div className="flex items-center gap-1.5 flex-1">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                  isActive ? "bg-blue-600 text-white font-black" :
-                  isCompleted ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400 border"
-                }`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isActive ? "bg-blue-600 text-white font-black" :
+                    isCompleted ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400 border"
+                  }`}>
                   {isCompleted ? "✓" : stepNum}
                 </span>
-                <span className={`hidden sm:inline font-bold text-[10px] uppercase tracking-wide truncate ${
-                  isActive ? "text-blue-700" : isCompleted ? "text-slate-500" : "text-slate-300"
-                }`}>
+                <span className={`hidden sm:inline font-bold text-[10px] uppercase tracking-wide truncate ${isActive ? "text-blue-700" : isCompleted ? "text-slate-500" : "text-slate-300"
+                  }`}>
                   {stepNum === 1 ? "Location" :
-                   stepNum === 2 ? "Problem" :
-                   stepNum === 3 ? "Details" : "Attachment"}
+                    stepNum === 2 ? "Problem" :
+                      stepNum === 3 ? "Details" : "Attachment"}
                 </span>
               </div>
               {stepNum < totalSteps && (
@@ -534,7 +553,7 @@ export default function NewIssueForm({
 
       {/* STEP BODY WRAPPER */}
       <div className="flex-1 flex flex-col justify-between min-h-0 overflow-y-auto pr-1">
-        
+
         {/* STEP 1: POSITION DETAILS FORM */}
         {step === 1 && (
           <div className="space-y-4 flex flex-col flex-1 min-h-0">
@@ -599,47 +618,44 @@ export default function NewIssueForm({
                       navigator.geolocation.getCurrentPosition(
                         (position) => {
                           const { latitude, longitude } = position.coords;
-                          let lat = latitude;
-                          let lng = longitude;
-                          const isOutside = lat < 45.48 || lat > 45.56 || lng < -122.72 || lng > -122.62;
-                          if (isOutside) {
-                            lat = 45.5192;
-                            lng = -122.6815;
-                          }
                           setTimeout(() => {
-                            setDetectedCoords({ lat, lng });
-                            setTypedAddress(reverseGeocode(lat, lng));
+                            setDetectedCoords({ lat: latitude, lng: longitude });
+                            setTypedAddress(formatLocationLabel(latitude, longitude));
                             setIsGeocoding(false);
-                            setGeocodeFeedback("✓ GPS Location locked successfully via device satellite!");
+                            setGeocodeFeedback("✓ GPS location locked successfully from your device.");
                           }, 800);
                         },
                         () => {
-                          setTimeout(() => {
-                            const lat = 45.5192 + (Math.random() - 0.5) * 0.015;
-                            const lng = -122.6815 + (Math.random() - 0.5) * 0.02;
-                            setDetectedCoords({ lat, lng });
-                            setTypedAddress(reverseGeocode(lat, lng));
-                            setIsGeocoding(false);
-                            setGeocodeFeedback("✓ Location resolved successfully (using browser fallback).");
-                          }, 1000);
+                          if (browserLocation) {
+                            setTimeout(() => {
+                              setDetectedCoords({ lat: browserLocation.lat, lng: browserLocation.lng });
+                              setTypedAddress(formatLocationLabel(browserLocation.lat, browserLocation.lng));
+                              setIsGeocoding(false);
+                              setGeocodeFeedback("✓ Using the browser location already available in the app.");
+                            }, 300);
+                            return;
+                          }
+
+                          setIsGeocoding(false);
+                          setGeocodeFeedback("Location access is blocked. Allow browser location permission or tap the map to place a pin.");
                         }
                       );
                     } else {
-                      setTimeout(() => {
-                        const lat = 45.5192;
-                        const lng = -122.6815;
-                        setDetectedCoords({ lat, lng });
-                        setTypedAddress(reverseGeocode(lat, lng));
+                      if (browserLocation) {
+                        setDetectedCoords({ lat: browserLocation.lat, lng: browserLocation.lng });
+                        setTypedAddress(formatLocationLabel(browserLocation.lat, browserLocation.lng));
                         setIsGeocoding(false);
-                        setGeocodeFeedback("✓ Portland Central simulation locked.");
-                      }, 1000);
+                        setGeocodeFeedback("✓ Using the browser location already available in the app.");
+                      } else {
+                        setIsGeocoding(false);
+                        setGeocodeFeedback("Location detection is unavailable in this browser. Please tap the map to set a location.");
+                      }
                     }
                   }}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer border ${
-                    isGeocoding 
-                      ? "bg-blue-50 text-blue-700 border-blue-200 animate-pulse" 
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer border ${isGeocoding
+                      ? "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
                       : "bg-white text-blue-600 border-blue-200 hover:bg-blue-50 active:scale-95"
-                  }`}
+                    }`}
                 >
                   <Compass className={`w-4 h-4 ${isGeocoding ? 'animate-spin' : ''}`} />
                   Detect My Location
@@ -649,8 +665,8 @@ export default function NewIssueForm({
               {/* Suggestions dropdown like Swiggy */}
               {showSuggestions && (
                 <div className="absolute left-0 right-0 top-11 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto animate-fadeIn">
-                  {PORTLAND_SUGGESTIONS.filter(item => 
-                    item.address.toLowerCase().includes(typedAddress.toLowerCase()) || 
+                  {PORTLAND_SUGGESTIONS.filter(item =>
+                    item.address.toLowerCase().includes(typedAddress.toLowerCase()) ||
                     item.desc.toLowerCase().includes(typedAddress.toLowerCase())
                   ).map((item) => (
                     <button
@@ -671,14 +687,14 @@ export default function NewIssueForm({
                       </div>
                     </button>
                   ))}
-                  {PORTLAND_SUGGESTIONS.filter(item => 
-                    item.address.toLowerCase().includes(typedAddress.toLowerCase()) || 
+                  {PORTLAND_SUGGESTIONS.filter(item =>
+                    item.address.toLowerCase().includes(typedAddress.toLowerCase()) ||
                     item.desc.toLowerCase().includes(typedAddress.toLowerCase())
                   ).length === 0 && (
-                    <div className="p-3 text-center text-xs text-slate-400 font-medium">
-                      Press 'Detect My Location' or touch the map to set a custom coordinate.
-                    </div>
-                  )}
+                      <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                        Press 'Detect My Location' or touch the map to set a custom coordinate.
+                      </div>
+                    )}
                 </div>
               )}
             </div>
@@ -686,7 +702,7 @@ export default function NewIssueForm({
             {/* Large Interactive SVG Map */}
             <div className="space-y-2 flex-1 flex flex-col min-h-[380px]">
               <div className="relative flex-1 bg-blue-50/40 rounded-2xl border border-slate-200 overflow-hidden cursor-crosshair shadow-inner">
-                <svg 
+                <svg
                   className="absolute inset-0 w-full h-full select-none"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
@@ -712,9 +728,9 @@ export default function NewIssueForm({
                   }}
                 >
                   {/* Water flow background path */}
-                  <path 
-                    d="M 160 0 Q 140 80, 190 120 T 170 200 L 200 200 T 210 120 Q 170 80, 190 0 Z" 
-                    fill="#d0e1fe" 
+                  <path
+                    d="M 160 0 Q 140 80, 190 120 T 170 200 L 200 200 T 210 120 Q 170 80, 190 0 Z"
+                    fill="#d0e1fe"
                     className="opacity-70"
                   />
 
@@ -727,7 +743,7 @@ export default function NewIssueForm({
                   <line x1="0" y1="100" x2="600" y2="100" stroke="#ffffff" strokeWidth="3" />
                   <line x1="0" y1="240" x2="600" y2="240" stroke="#f1f3f7" strokeWidth="8" />
                   <line x1="0" y1="240" x2="600" y2="240" stroke="#ffffff" strokeWidth="3" />
-                  
+
                   <line x1="180" y1="0" x2="180" y2="400" stroke="#f1f3f7" strokeWidth="8" />
                   <line x1="180" y1="0" x2="180" y2="400" stroke="#ffffff" strokeWidth="3" />
                   <line x1="420" y1="0" x2="420" y2="400" stroke="#f1f3f7" strokeWidth="8" />
@@ -735,7 +751,7 @@ export default function NewIssueForm({
 
                   {/* Draggable pinpoint representation inside map */}
                   {detectedCoords && (
-                    <g transform={`translate(${((detectedCoords.lng - (-122.7)) / 0.06) * 100}%, ${ (1 - (detectedCoords.lat - 45.5) / 0.04) * 100}%)`}>
+                    <g transform={`translate(${((detectedCoords.lng - (-122.7)) / 0.06) * 100}%, ${(1 - (detectedCoords.lat - 45.5) / 0.04) * 100}%)`}>
                       <circle cx="0" cy="0" r="28" fill="#3b82f6" fillOpacity="0.15" className="animate-ping" />
                       <circle cx="0" cy="0" r="14" fill="#3b82f6" fillOpacity="0.3" />
                       <circle cx="0" cy="0" r="7" fill="#2563eb" stroke="#ffffff" strokeWidth="2" className="shadow-lg" />
@@ -827,11 +843,10 @@ export default function NewIssueForm({
                       setSelectedCategory(label);
                       setDiagnosticAnswers({});
                     }}
-                    className={`p-4 rounded-2xl border text-left text-xs transition-all flex flex-col justify-between cursor-pointer group min-h-[110px] ${
-                      isSelected 
-                        ? "bg-blue-50 border-blue-600 text-blue-950 shadow-md ring-2 ring-blue-500" 
+                    className={`p-4 rounded-2xl border text-left text-xs transition-all flex flex-col justify-between cursor-pointer group min-h-[110px] ${isSelected
+                        ? "bg-blue-50 border-blue-600 text-blue-950 shadow-md ring-2 ring-blue-500"
                         : "bg-white border-slate-200 hover:border-slate-350 hover:shadow-xs text-slate-700"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start justify-between w-full">
                       <span className="text-2xl">{emoji}</span>
@@ -855,11 +870,10 @@ export default function NewIssueForm({
                   setSelectedCategory("others");
                   setDiagnosticAnswers({});
                 }}
-                className={`p-4 rounded-2xl border text-left text-xs transition-all flex flex-col justify-between cursor-pointer group min-h-[110px] ${
-                  selectedCategory === "others" 
-                    ? "bg-blue-50 border-blue-600 text-blue-950 shadow-md ring-2 ring-blue-500" 
+                className={`p-4 rounded-2xl border text-left text-xs transition-all flex flex-col justify-between cursor-pointer group min-h-[110px] ${selectedCategory === "others"
+                    ? "bg-blue-50 border-blue-600 text-blue-950 shadow-md ring-2 ring-blue-500"
                     : "bg-white border-slate-200 hover:border-slate-350 hover:shadow-xs text-slate-700"
-                }`}
+                  }`}
               >
                 <div className="flex items-start justify-between w-full">
                   <span className="text-2xl">🧩</span>
@@ -905,7 +919,7 @@ export default function NewIssueForm({
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 flex-1 overflow-y-auto pr-1">
-              
+
               {/* LEFT SIDE: DIAGNOSTICS & DESCRIPTION INPUT */}
               <div className="space-y-4">
                 {/* Set-defined list of questions (Humble & polite, optional) */}
@@ -929,11 +943,10 @@ export default function NewIssueForm({
                                       [q.id]: isChecked ? undefined : opt.score
                                     }));
                                   }}
-                                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                                    isChecked 
-                                      ? "bg-blue-600 text-white border-blue-650 shadow-xs" 
+                                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${isChecked
+                                      ? "bg-blue-600 text-white border-blue-650 shadow-xs"
                                       : "bg-white border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-600"
-                                  }`}
+                                    }`}
                                 >
                                   {opt.label}
                                 </button>
@@ -964,7 +977,7 @@ export default function NewIssueForm({
 
               {/* RIGHT SIDE: SAFETY COMPLIANCE & INCIDENT NOTICES */}
               <div className="space-y-4 flex flex-col justify-between">
-                
+
                 {/* Public Notice Bento Card */}
                 <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl space-y-3">
                   <div className="flex items-start gap-3">
@@ -1032,25 +1045,24 @@ export default function NewIssueForm({
 
             {/* Dual Attachment Section (Manual click & Drag/Drop + Presets) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              
+
               {/* Left side: Upload card */}
-              <div 
+              <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => document.getElementById("citizen-file-picker")?.click()}
-                className={`border-2 border-dashed rounded-xl p-3 text-center flex flex-col items-center justify-center cursor-pointer transition-all ${
-                  dragOver ? "border-blue-500 bg-blue-50/50" : "border-slate-250 hover:border-blue-400 bg-slate-50/50 hover:bg-slate-50"
-                }`}
+                className={`border-2 border-dashed rounded-xl p-3 text-center flex flex-col items-center justify-center cursor-pointer transition-all ${dragOver ? "border-blue-500 bg-blue-50/50" : "border-slate-250 hover:border-blue-400 bg-slate-50/50 hover:bg-slate-50"
+                  }`}
               >
-                <input 
-                  type="file" 
-                  id="citizen-file-picker" 
-                  className="hidden" 
-                  accept="image/*" 
+                <input
+                  type="file"
+                  id="citizen-file-picker"
+                  className="hidden"
+                  accept="image/*"
                   onChange={handleFileChange}
                 />
-                
+
                 <Upload className="w-6 h-6 text-slate-400 mb-1 animate-bounce" />
                 <span className="text-[11px] font-extrabold text-slate-700">
                   {uploadedFileName ? "File Chosen" : "Upload local image"}
@@ -1073,11 +1085,10 @@ export default function NewIssueForm({
                         setImageUrl("");
                         setUploadedFileName("");
                       }}
-                      className={`relative aspect-video rounded overflow-hidden border-2 transition-all cursor-pointer ${
-                        filePreselectedIdx === idx 
-                          ? "border-blue-600 ring-2 ring-blue-100" 
+                      className={`relative aspect-video rounded overflow-hidden border-2 transition-all cursor-pointer ${filePreselectedIdx === idx
+                          ? "border-blue-600 ring-2 ring-blue-100"
                           : "border-slate-200 hover:opacity-90"
-                      }`}
+                        }`}
                     >
                       <img src={url} className="w-full h-full object-cover" alt="preset preview" />
                     </button>
