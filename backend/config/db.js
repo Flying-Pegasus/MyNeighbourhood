@@ -8,7 +8,7 @@ export async function connectDB() {
     console.log(`[MongoDB] Connected successfully to: ${mongoose.connection.host}/${mongoose.connection.name}`);
   } catch (error) {
     console.error("[MongoDB] Connection failed:", error.message);
-    process.exit(1);
+    throw error;
   }
 
   mongoose.connection.on("error", (err) => {

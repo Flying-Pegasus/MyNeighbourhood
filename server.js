@@ -21,11 +21,14 @@ app.use("/api", apiRouter);
 
 // NODE SERVING (Vite + Dist Static Files)
 async function startServer() {
-  // Connect to MongoDB
-  await connectDB();
-  await seedDatabase();
+  try {
+    await connectDB();
+    await seedDatabase();
+    console.log("[MongoDB] Database connected successfully.");
+  } catch (error) {
+    console.warn("[MongoDB] No database available; continuing in fallback auth mode.", error.message);
+  }
 
-  // Start SLA deadline monitoring
   startSLAMonitor();
 
   if (process.env.NODE_ENV !== "production") {

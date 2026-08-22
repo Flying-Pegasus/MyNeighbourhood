@@ -13,6 +13,7 @@ export default function Header({
   setShowNotificationsDropdown,
   setSelectedIssue,
   handleMarkAdRead,
+  onLogout,
   allUsers = [] // From the backend for identity switching
 }) {
   return (
@@ -26,10 +27,10 @@ export default function Header({
         </button>
         <h2 className="text-[14px] sm:text-[15px] font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
           {activeTab === "map" ? "City Health Live Grid Map" :
-           activeTab === "report" ? "Report Municipal Hazard" :
-           activeTab === "rewards" ? "Citizen Reward Program" :
-           activeTab === "chat" ? "AI Civic Diagnostic Assistant" :
-           activeTab === "officer" ? "Field Agency Workstation" : "Central Intelligence Analytics"}
+            activeTab === "report" ? "Report Municipal Hazard" :
+              activeTab === "rewards" ? "Citizen Reward Program" :
+                activeTab === "chat" ? "AI Civic Diagnostic Assistant" :
+                  activeTab === "officer" ? "Field Agency Workstation" : "Central Intelligence Analytics"}
         </h2>
         <div className="hidden sm:flex gap-1.5">
           <span className="px-2 py-0.5 bg-green-150 text-green-700 text-[9px] font-extrabold rounded border border-green-200 uppercase tracking-wider">
@@ -55,6 +56,14 @@ export default function Header({
             ))}
           </select>
         </div>
+
+        <button
+          type="button"
+          onClick={onLogout}
+          className="border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold px-3 py-1.5 rounded-full text-[10px] uppercase tracking-wide cursor-pointer"
+        >
+          Logout
+        </button>
 
         {/* Notification drop hub */}
         <div className="relative">
@@ -85,7 +94,7 @@ export default function Header({
                   <div className="text-center py-6 text-slate-400 italic">No alerts on register.</div>
                 ) : (
                   notifications.map((notif) => (
-                    <div 
+                    <div
                       key={notif._id || notif.id}
                       onClick={() => {
                         if (notif.issueId) {
@@ -95,9 +104,8 @@ export default function Header({
                         handleMarkAdRead(notif._id || notif.id);
                         setShowNotificationsDropdown(false);
                       }}
-                      className={`p-2.5 rounded-xl border leading-relaxed hover:bg-slate-50 cursor-pointer transition-all ${
-                        notif.isRead ? "border-slate-100 bg-white opacity-60" : "border-blue-100 bg-blue-50/20"
-                      }`}
+                      className={`p-2.5 rounded-xl border leading-relaxed hover:bg-slate-50 cursor-pointer transition-all ${notif.isRead ? "border-slate-100 bg-white opacity-60" : "border-blue-100 bg-blue-50/20"
+                        }`}
                     >
                       <div className="flex justify-between font-bold text-slate-800">
                         <span className="truncate pr-2 flex items-center gap-1">

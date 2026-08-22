@@ -26,11 +26,11 @@ async function insertSeedData() {
 
   // --- Users ---
   const users = await User.insertMany([
-    { name: "Alex Reed", email: "alex@civicpulse.ai", role: "Citizen", points: 145, badges: ["Local Reporter", "Neighborhood Guardian"], credibilityScore: 92 },
-    { name: "Maria Santos", email: "maria@civicpulse.ai", role: "Citizen", points: 55, badges: ["Local Reporter"], credibilityScore: 85 },
-    { name: "David Chen", email: "david@civicpulse.ai", role: "Citizen", points: 210, badges: ["Local Reporter", "Neighborhood Guardian", "Community Hero"], credibilityScore: 98 },
-    { name: "Officer Marcus Vance", email: "marcus.vance@metro.gov", role: "Officer", points: 0, badges: [], credibilityScore: 100 },
-    { name: "Director Sarah Jenkins", email: "sarah.jenkins@metro.gov", role: "Admin", points: 0, badges: [], credibilityScore: 100 }
+    { name: "Alex Reed", email: "alex@civicpulse.ai", password: "Password123!", role: "Citizen", points: 145, badges: ["Local Reporter", "Neighborhood Guardian"], credibilityScore: 92 },
+    { name: "Maria Santos", email: "maria@civicpulse.ai", password: "Password123!", role: "Citizen", points: 55, badges: ["Local Reporter"], credibilityScore: 85 },
+    { name: "David Chen", email: "david@civicpulse.ai", password: "Password123!", role: "Citizen", points: 210, badges: ["Local Reporter", "Neighborhood Guardian", "Community Hero"], credibilityScore: 98 },
+    { name: "Officer Marcus Vance", email: "marcus.vance@metro.gov", password: "Password123!", role: "Officer", points: 0, badges: [], credibilityScore: 100 },
+    { name: "Director Sarah Jenkins", email: "sarah.jenkins@metro.gov", password: "Password123!", role: "Admin", points: 0, badges: [], credibilityScore: 100 }
   ]);
   console.log(`[Seed] Inserted ${users.length} users`);
 

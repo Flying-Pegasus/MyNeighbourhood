@@ -11,14 +11,24 @@ import AICivicAssistant from "./components/AICivicAssistant";
 import LeaderboardsAndRewards from "./components/LeaderboardsAndRewards";
 import OfficerDashboard from "./components/OfficerDashboard";
 import AdminAnalytics from "./components/AdminAnalytics";
+import AuthScreen from "./components/AuthScreen";
 import { useSSE } from "./hooks/useSSE";
 import * as API from "./services/api";
 import { PlusCircle } from "lucide-react";
 
+const getStoredToken = () => {
+  try {
+    return localStorage.getItem("mn_token");
+  } catch {
+    return null;
+  }
+};
+
 export default function App() {
-  // Core State
   const [allUsers, setAllUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [token, setToken] = useState(getStoredToken);
+  const [authReady, setAuthReady] = useState(false);
   const [issues, setIssues] = useState([]);
   const [predictions, setPredictions] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -26,20 +36,38 @@ export default function App() {
   const [userCoords, setUserCoords] = useState({ lat: 45.5200, lng: -122.6800 });
   const [adminStats, setAdminStats] = useState(null);
 
-  // Layout & UI State
   const [activeTab, setActiveTab] = useState("map");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [droppedPin, setDroppedPin] = useState(null);
   const [showNewIssueModal, setShowNewIssueModal] = useState(false);
 
-  // Filters
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [severityFilter, setSeverityFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
 
-  // Init Data Fetching
+  const handleAuthSuccess = ({ user, token: nextToken }) => {
+    if (nextToken) {
+      localStorage.setItem("mn_token", nextToken);
+      setToken(nextToken);
+    }
+    setCurrentUser(user);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("mn_token");
+    setToken(null);
+    setCurrentUser(null);
+    setAllUsers([]);
+    setNotifications([]);
+    setIssues([]);
+    setPredictions([]);
+    setAdminStats(null);
+  };
+
   const triggerRefresh = useCallback(async () => {
+    if (!currentUser) return;
+
     try {
       const [issuesData, predData, statsData] = await Promise.all([
         API.fetchIssues(),
@@ -51,20 +79,17 @@ export default function App() {
       setPredictions(predData);
       setAdminStats(statsData);
 
-      if (currentUser) {
-        const [dashData, notifData] = await Promise.all([
-          API.fetchUserDashboard(currentUser._id || currentUser.id),
-          API.fetchNotifications(currentUser._id || currentUser.id)
-        ]);
-        setCurrentUser(dashData.user);
-        setNotifications(notifData);
-      }
+      const [dashData, notifData] = await Promise.all([
+        API.fetchUserDashboard(currentUser._id || currentUser.id),
+        API.fetchNotifications(currentUser._id || currentUser.id)
+      ]);
+      setCurrentUser(dashData.user);
+      setNotifications(notifData);
     } catch (err) {
       console.error("Refresh error:", err);
     }
   }, [currentUser]);
 
-  // Initial Boot Sequence
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -73,29 +98,57 @@ export default function App() {
       );
     }
 
+    let active = true;
+
     const init = async () => {
+      if (!token) {
+        setAuthReady(true);
+        return;
+      }
+
       try {
-        const users = await API.fetchAllUsers();
-        setAllUsers(users);
-        if (users.length > 0) {
-          const defaultUser = users.find((user) => user.role === UserRole.CITIZEN) || users[0];
-          const dashData = await API.fetchUserDashboard(defaultUser._id);
-          setCurrentUser(dashData.user);
+        const user = await API.getCurrentUser();
+        if (active) {
+          setCurrentUser(user);
         }
-      } catch (e) {
-        console.error("Boot error:", e);
+      } catch (error) {
+        localStorage.removeItem("mn_token");
+        setToken(null);
+      } finally {
+        if (active) setAuthReady(true);
       }
     };
-    init();
-  }, []);
 
-  // Update loop when user changes
+    init();
+    return () => { active = false; };
+  }, [token]);
+
+  useEffect(() => {
+    if (!authReady || !currentUser) return;
+
+    const loadAppData = async () => {
+      try {
+        const [users, dashData] = await Promise.all([
+          API.fetchAllUsers(),
+          API.fetchUserDashboard(currentUser._id || currentUser.id)
+        ]);
+
+        setAllUsers(users);
+        setCurrentUser(dashData.user);
+      } catch (error) {
+        console.error("Boot error:", error);
+      }
+    };
+
+    loadAppData();
+  }, [authReady, currentUser?._id]);
+
   useEffect(() => {
     if (currentUser) triggerRefresh();
   }, [currentUser?._id, triggerRefresh]);
 
-  // Handle SSE Real-Time Events
   useSSE("/api/events", useCallback((type, data) => {
+    if (!currentUser) return;
     if (type === "issue_created") {
       setIssues(prev => [data.issue, ...prev]);
     } else if (type === "issue_updated") {
@@ -104,12 +157,10 @@ export default function App() {
         setSelectedIssue(data.issue);
       }
     } else if (type === "sla_breach") {
-      // Re-fetch issues to grab updated SLA boolean and stats
       triggerRefresh();
     }
-  }, [selectedIssue?._id, triggerRefresh]));
+  }, [currentUser, selectedIssue?._id, triggerRefresh]));
 
-  // Actions
   const handleUserRoleShift = async (userId) => {
     try {
       const dashData = await API.fetchUserDashboard(userId);
@@ -144,6 +195,14 @@ export default function App() {
     }
   };
 
+  if (!authReady) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-700 font-semibold">Loading MyNeighbourhood…</div>;
+  }
+
+  if (!currentUser) {
+    return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+  }
+
   return (
     <div className="h-screen w-full bg-[#F1F5F9] text-slate-900 font-sans flex overflow-hidden selection:bg-blue-100 relative">
       <Sidebar
@@ -167,19 +226,18 @@ export default function App() {
           showNotificationsDropdown={showNotificationsDropdown}
           setShowNotificationsDropdown={setShowNotificationsDropdown}
           setSelectedIssue={setSelectedIssue}
+          onLogout={logout}
           handleMarkAdRead={async (id) => {
             await API.markNotificationRead(id);
             triggerRefresh();
           }}
         />
 
-        {/* Content body */}
         <div className="flex-1 p-4 md:p-6 space-y-4 min-h-0 overflow-y-auto lg:overflow-hidden flex flex-col">
 
           {activeTab === "map" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch lg:h-full lg:min-h-0 flex-1 min-h-0">
               <div className="lg:col-span-2 space-y-4 lg:h-full lg:min-h-0 flex flex-col">
-                {/* Advanced Search Filter Panel */}
                 <div className="bg-white px-5 py-3 border border-slate-200 rounded-2xl shadow-xs flex flex-col md:flex-row gap-4 items-center text-xs justify-between">
                   <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
                     <span className="font-bold text-slate-405 uppercase tracking-wide">Dynamic Filter:</span>
@@ -223,7 +281,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Map integration */}
                 <div className="flex-1 h-[480px] lg:h-full lg:min-h-0">
                   <CivicMap
                     issues={issues}
